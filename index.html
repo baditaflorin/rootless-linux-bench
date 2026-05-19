@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rootless Linux — Browser Container Benchmark</title>
+  <meta name="description" content="Run Debian 12 and Fedora 41 side-by-side in your browser — zero servers, pure WebAssembly. Part of the rootless-computing paradigm." />
+
+  <!-- Prefetch fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- xterm.js -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+
+  <!-- Chart.js for comparison charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="css/main.css" />
+
+  <!-- Unregister stale service workers (the full COI worker is opt-in for real WASM mode) -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations()
+        .then(regs => regs.forEach(r => r.update()))
+        .catch(() => {});
+    }
+  </script>
+</head>
+<body>
+
+<!-- ── HERO ────────────────────────────────────────────────────────────────── -->
+<section id="hero" class="hero active">
+  <div class="hero-content">
+
+    <div class="hero-badge">
+      <span class="dot"></span>
+      rootless-computing · container2wasm · browser-native Linux
+    </div>
+
+    <h1>Rootless Linux</h1>
+    <p class="tagline">
+      Debian 12 &amp; Fedora 41 — full Linux environments,<br>
+      no server, no root, running entirely in your browser via WebAssembly.
+    </p>
+
+    <div class="distro-cards">
+
+      <div class="distro-card debian">
+        <h2>🐧 Debian 12</h2>
+        <p class="distro-sub">bookworm · apt · GNU coreutils</p>
+        <ul class="distro-specs">
+          <li><span>WASM size</span><span>~247 MB</span></li>
+          <li><span>Boot time</span><span>~9 s</span></li>
+          <li><span>Kernel</span><span>6.1 LTS</span></li>
+          <li><span>Package mgr</span><span>apt-get</span></li>
+        </ul>
+        <button class="btn btn-debian" id="btn-debian">▶ Start Debian</button>
+      </div>
+
+      <div class="distro-card fedora">
+        <h2>🎩 Fedora 41</h2>
+        <p class="distro-sub">linux · dnf5 · SELinux</p>
+        <ul class="distro-specs">
+          <li><span>WASM size</span><span>~312 MB</span></li>
+          <li><span>Boot time</span><span>~13 s</span></li>
+          <li><span>Kernel</span><span>6.11</span></li>
+          <li><span>Package mgr</span><span>dnf</span></li>
+        </ul>
+        <button class="btn btn-fedora" id="btn-fedora">▶ Start Fedora</button>
+      </div>
+
+    </div>
+
+    <button class="btn-both" id="btn-both">▶▶ Start Both — Run Side-by-Side Comparison</button>
+
+    <p class="hero-note">
+      Powered by <a href="https://github.com/ktock/container2wasm" target="_blank" rel="noopener">container2wasm</a>
+      · Part of <a href="https://github.com/baditaflorin/rootless-computing" target="_blank" rel="noopener">rootless-computing</a>
+    </p>
+
+  </div>
+</section>
+
+<!-- ── LAB ─────────────────────────────────────────────────────────────────── -->
+<section id="lab" class="lab hidden">
+
+  <!-- Header bar -->
+  <header class="lab-header">
+    <span class="lab-logo">rootless-linux-bench</span>
+    <div class="lab-controls">
+      <button class="btn-secondary" id="btn-benchmark">⚡ Run Benchmark</button>
+      <button class="btn-secondary" id="btn-show-perf">📊 Performance</button>
+      <button class="btn-secondary" id="btn-reset">↺ Reset</button>
+    </div>
+  </header>
+
+  <!-- Terminal grid -->
+  <div class="terminal-grid two-up" id="terminal-grid">
+
+    <!-- ── Debian pane ── -->
+    <div class="pane hidden" id="pane-debian">
+      <div class="pane-header">
+        <div class="pane-title">
+          <span class="distro-dot debian"></span>
+          Debian 12 (bookworm)
+          <span class="status-indicator" id="status-debian">⬤ idle</span>
+        </div>
+        <div class="pane-actions">
+          <button class="btn-icon" id="fullscreen-debian" title="Fullscreen (F)">⛶</button>
+        </div>
+      </div>
+
+      <div class="pane-progress" id="progress-debian" style="display:none">
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill-debian"></div>
+        </div>
+        <span class="progress-label" id="progress-label-debian">Initialising…</span>
+      </div>
+
+      <div id="terminal-debian" class="xterm-host"></div>
+
+      <div class="pane-metrics" id="pane-metrics-debian">
+        <span class="metric-chip" data-metric="boot">boot —</span>
+        <span class="metric-chip" data-metric="ram">RAM —</span>
+        <span class="metric-chip" data-metric="latency">cmd —</span>
+      </div>
+    </div>
+
+    <!-- ── Fedora pane ── -->
+    <div class="pane hidden" id="pane-fedora">
+      <div class="pane-header">
+        <div class="pane-title">
+          <span class="distro-dot fedora"></span>
+          Fedora Linux 41
+          <span class="status-indicator" id="status-fedora">⬤ idle</span>
+        </div>
+        <div class="pane-actions">
+          <button class="btn-icon" id="fullscreen-fedora" title="Fullscreen (F)">⛶</button>
+        </div>
+      </div>
+
+      <div class="pane-progress" id="progress-fedora" style="display:none">
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-fill-fedora"></div>
+        </div>
+        <span class="progress-label" id="progress-label-fedora">Initialising…</span>
+      </div>
+
+      <div id="terminal-fedora" class="xterm-host"></div>
+
+      <div class="pane-metrics" id="pane-metrics-fedora">
+        <span class="metric-chip" data-metric="boot">boot —</span>
+        <span class="metric-chip" data-metric="ram">RAM —</span>
+        <span class="metric-chip" data-metric="latency">cmd —</span>
+      </div>
+    </div>
+
+  </div><!-- /terminal-grid -->
+
+  <!-- ── Performance panel ── -->
+  <div id="perf-panel" class="perf-panel hidden">
+    <h2>Benchmark Results</h2>
+
+    <table class="comparison-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>🐧 Debian 12</th>
+          <th>🎩 Fedora 41</th>
+          <th>Winner</th>
+        </tr>
+      </thead>
+      <tbody id="results-body">
+        <tr><td colspan="4" style="color:var(--text-muted);font-family:var(--font-mono);font-size:12px;padding:1rem">
+          Run the benchmark first — click ⚡ Run Benchmark above.
+        </td></tr>
+      </tbody>
+    </table>
+
+    <div class="charts-row">
+      <div class="chart-box"><canvas id="chart-boot"></canvas></div>
+      <div class="chart-box"><canvas id="chart-latency"></canvas></div>
+      <div class="chart-box"><canvas id="chart-ram"></canvas></div>
+    </div>
+  </div>
+
+</section><!-- /lab -->
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
