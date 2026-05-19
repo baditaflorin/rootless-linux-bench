@@ -1,8 +1,30 @@
-// Self-unregistering stub — clears any stale SW from previous installs.
-// The full COOP/COEP worker is only needed for real WASM mode (not simulation).
+// COI (Cross-Origin Isolation) service worker
+// Injects COOP + COEP headers on same-origin responses so SharedArrayBuffer
+// (needed by QEMU pthreads) is available without server configuration.
+// Cross-origin requests (CDN, GitHub Releases) are passed through unchanged.
+
 self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", async () => {
-  await self.registration.unregister();
-  const clients = await self.clients.matchAll({ type: "window" });
-  clients.forEach((c) => c.navigate(c.url));
+self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
+
+self.addEventListener("fetch", (event) => {
+  const url = event.request.url;
+
+  // Only intercept same-origin navigations and subresources
+  if (!url.startsWith(self.location.origin)) return;
+
+  event.respondWith(
+    fetch(event.request).then((response) => {
+      if (response.status === 0) return response;
+
+      const headers = new Headers(response.headers);
+      headers.set("Cross-Origin-Opener-Policy", "same-origin");
+      headers.set("Cross-Origin-Embedder-Policy", "credentialless");
+
+      return new Response(response.body, {
+        status:     response.status,
+        statusText: response.statusText,
+        headers,
+      });
+    }).catch(() => fetch(event.request))
+  );
 });

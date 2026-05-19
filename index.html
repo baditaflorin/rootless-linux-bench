@@ -20,12 +20,15 @@
 
   <link rel="stylesheet" href="css/main.css" />
 
-  <!-- Unregister stale service workers (the full COI worker is opt-in for real WASM mode) -->
+  <!-- COI service worker — required for SharedArrayBuffer (QEMU pthreads) -->
   <script>
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.getRegistrations()
-        .then(regs => regs.forEach(r => r.update()))
-        .catch(() => {});
+      navigator.serviceWorker.register("/coi-serviceworker.js").then(reg => {
+        // If a new worker activated, reload once to pick up the COOP/COEP headers
+        if (reg.active && !navigator.serviceWorker.controller) {
+          location.reload();
+        }
+      }).catch(() => {});
     }
   </script>
 </head>

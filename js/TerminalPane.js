@@ -4,6 +4,7 @@
 import { LinuxSim } from "./LinuxSim.js";
 import { Metrics } from "./Metrics.js";
 import { getCached, putCached, isCacheEnabled } from "./WasmCache.js";
+import { isIsolated, isWasmAvailable, startWasmRuntime } from "./WasmLoader.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -155,30 +156,90 @@ export class TerminalPane {
     this._initTerm();
     this.setStatus("⬤ loading", "loading");
 
-    // --- Phase 1: WASM load (cache-aware) ---
     this.progressEl.style.display = "flex";
-    this.metrics.setWasmSize(this.sim.wasmMB);
     this.metrics.markLoadStart();
 
+    // ── Real WASM mode ────────────────────────────────────────────────
+    if (isIsolated() && await isWasmAvailable()) {
+      await this._startReal();
+      return;
+    }
+
+    // ── Simulation mode ───────────────────────────────────────────────
+    await this._startSim();
+  }
+
+  async _startReal() {
+    const mb = this.sim.wasmMB;
+    this.metrics.setWasmSize(mb);
+    this.setCacheBadge("⬇ real WASM");
+    this.progressLabelEl.textContent = `Loading ${this.sim.distro.name} WASM (${mb} MB)…`;
+
+    try {
+      const pty = await startWasmRuntime(this.distroId, this.term, {
+        onProgress: (pct) => {
+          this.progressFillEl.style.width = (pct * 100) + "%";
+          this.progressLabelEl.textContent =
+            `Loading ${this.sim.distro.name} WASM — ${Math.round(pct * mb)} / ${mb} MB`;
+        },
+      });
+      this._pty = pty;
+    } catch (err) {
+      this.term.writeln(`\x1b[31m[WasmLoader] ${err.message} — falling back to simulation\x1b[0m`);
+      await this._startSim();
+      return;
+    }
+
+    this.metrics.markLoadEnd();
+    this.progressEl.style.display = "none";
+
+    // In real mode xterm-pty handles I/O directly; mark ready immediately
+    this.state = "booting";
+    this.setStatus("⬤ booting", "booting");
+    this.metrics.markBootStart();
+
+    // QEMU boot output streams to the terminal automatically via the PTY.
+    // Poll for the shell prompt to detect boot completion.
+    await new Promise((resolve) => {
+      let buf = "";
+      const token = this.term.onData((chunk) => {
+        buf += chunk;
+        if (/[#$]\s*$/.test(buf.slice(-20))) {
+          token.dispose();
+          resolve();
+        }
+      });
+      // Timeout safety — assume ready after 60 s
+      setTimeout(resolve, 60_000);
+    });
+
+    this.metrics.markBootEnd();
+    this.metrics.setRam(this.sim.ramMB());
+    this.metrics.renderInto(this.paneMetricsEl);
+
+    this.state = "ready";
+    this._inputEnabled = true;
+    this.setStatus("⬤ ready", "ready");
+  }
+
+  async _startSim() {
     const mb        = this.sim.wasmMB;
     const cacheKey  = `wasm-sim-${this.distroId}`;
     const cached    = isCacheEnabled() && await getCached(cacheKey);
+    this.metrics.setWasmSize(mb);
 
     if (cached) {
-      // Fast cache-hit path
       this.progressFillEl.style.width = "100%";
       this.progressLabelEl.textContent = `💾 Loaded from cache — ${mb} MB`;
       this.setCacheBadge("💾 cached");
       await sleep(600 + Math.random() * 400);
     } else {
-      // Simulate fresh download
       this.setCacheBadge("⬇ fresh");
       await simulateDownload(mb, (pct) => {
         this.progressFillEl.style.width = (pct * 100) + "%";
         this.progressLabelEl.textContent =
           `Downloading ${this.sim.distro.name} WASM — ${Math.round(pct * mb)} / ${mb} MB`;
       });
-      // Cache the sentinel after "download"
       if (isCacheEnabled()) {
         await putCached(cacheKey, "sim");
         this.setCacheBadge("💾 cached");
@@ -190,7 +251,7 @@ export class TerminalPane {
     await sleep(400);
     this.progressEl.style.display = "none";
 
-    // --- Phase 2: Boot ---
+    // Boot simulation
     this.state = "booting";
     this.setStatus("⬤ booting", "booting");
     this.metrics.markBootStart();
@@ -201,7 +262,6 @@ export class TerminalPane {
     this.term.writeln("\x1b[32m[rootless-computing] container2wasm runtime v0.8 — emulation ready\x1b[0m");
     this.term.writeln("\x1b[2m" + "─".repeat(60) + "\x1b[0m");
 
-    // Fast early kernel lines, slower systemd lines
     const kernel  = bootLines.slice(0, 10);
     const systemd = bootLines.slice(10);
     const kernelMs  = bootMs * 0.35;
