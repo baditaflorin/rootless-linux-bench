@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Fedora 41 Terminal</title>
+  <link rel="stylesheet" href="https://unpkg.com/@xterm/xterm@5.5.0/css/xterm.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #0d0d0d; height: 100%; overflow: hidden; }
+    #terminal { width: 100%; height: 100%; }
+  </style>
+
+  <!--
+    Step 1: configure Module.locateFile BEFORE fedora-load.js runs.
+    fedora.data.gz is gzip-compressed (~44 MB vs 109 MB raw).
+    The service worker intercepts the .data.gz request and injects
+    Content-Encoding: gzip so the browser decompresses on-the-fly,
+    giving Emscripten the full 109 MB raw data blob.
+  -->
+  <script>
+    window.Module = {
+      locateFile(path) {
+        if (path === "qemu-system-x86_64.wasm") return "./qemu.wasm";
+        if (path === "qemu-system-x86_64.data") return "./fedora.data.gz";
+        return path;
+      }
+    };
+  </script>
+
+  <!--
+    Step 2: data-file metadata loader — runs synchronously, starts
+    downloading fedora.data.gz in the background using Module.locateFile.
+  -->
+  <script src="./fedora-load.js"></script>
+</head>
+<body>
+  <div id="terminal"></div>
+
+  <!-- xterm.js UMD — exposes Terminal globally -->
+  <script src="https://unpkg.com/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+  <!-- xterm-addon-fit UMD — exposes FitAddon globally -->
+  <script src="https://unpkg.com/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+  <!-- xterm-pty UMD — exposes openpty() globally -->
+  <script src="https://unpkg.com/xterm-pty/index.js"></script>
+
+  <script type="module">
+    // Step 3: QEMU arguments (sets Module['arguments'])
+    import "./arg-module.js";
+    // Step 4: import Emscripten factory (out.js exports it as default)
+    import initEmscriptenModule from "./out.js";
+
+    // ── Terminal setup ────────────────────────────────────────────────
+    const term = new Terminal({
+      cursorBlink: true,
+      fontSize: 13,
+      fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
+      theme: {
+        background: "#0d0d0d", foreground: "#c9d1d9", cursor: "#d29922",
+      },
+      scrollback: 2000,
+    });
+    const fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(document.getElementById("terminal"));
+    fitAddon.fit();
+    window.addEventListener("resize", () => fitAddon.fit());
+
+    // ── PTY bridge ────────────────────────────────────────────────────
+    const { master, slave } = openpty();
+    term.loadAddon(master);
+
+    // ── Module configuration ──────────────────────────────────────────
+    window.Module.pty = slave;
+    window.Module["mainScriptUrlOrBlob"] = new URL("./out.js", location.href).href;
+
+    // Write /pack/info — required by container2wasm init process
+    const info = "t:" + Math.round(Date.now() / 1000) + "\n";
+    (window.Module["preRun"] ??= []).push((mod) => {
+      try { mod.FS.mkdir("/pack"); } catch {}
+      mod.FS.writeFile("/pack/info", info);
+    });
+
+    // TTY poll hook — enables interactive input (from c2w emscripten-simple)
+    const readableCallbacks = [];
+    slave.onReadable(() => readableCallbacks.splice(0).forEach(cb => cb()));
+    (window.Module["preRun"] ??= []).push((mod) => {
+      mod["TTY"].stream_ops.poll = (stream, timeout, notifyCallback) => {
+        if (slave.readable) return 1;
+        if (notifyCallback != null) {
+          notifyCallback.registerCleanupFunc(() => {
+            const i = readableCallbacks.indexOf(notifyCallback);
+            if (i !== -1) readableCallbacks.splice(i, 1);
+          });
+          readableCallbacks.push(notifyCallback);
+        }
+        return 0;
+      };
+    });
+
+    // ── Progress reporting ────────────────────────────────────────────
+    window.Module.setStatus = (text) => {
+      if (!text) return;
+      const m = text.match(/(\d+)\/(\d+)/);
+      const ratio = m ? parseInt(m[1]) / parseInt(m[2]) : null;
+      parent.postMessage({ type: "progress", ratio, label: text }, "*");
+    };
+
+    // ── Boot detection ────────────────────────────────────────────────
+    let ready = false;
+    let outputBuf = "";
+    const origWrite = term.write.bind(term);
+    term.write = function (data, cb) {
+      origWrite(data, cb);
+      if (!ready) {
+        outputBuf += typeof data === "string" ? data : new TextDecoder().decode(data);
+        if (outputBuf.length > 4000) outputBuf = outputBuf.slice(-2000);
+        if (/[#$]\s*$/.test(outputBuf)) {
+          ready = true;
+          parent.postMessage({ type: "ready" }, "*");
+        }
+      }
+    };
+
+    // ── Input from parent ─────────────────────────────────────────────
+    window.addEventListener("message", (e) => {
+      if (e.data?.type === "input") slave.write(e.data.data);
+    });
+
+    // ── Start QEMU ────────────────────────────────────────────────────
+    parent.postMessage({ type: "loading", distro: "fedora" }, "*");
+    await initEmscriptenModule(window.Module);
+  </script>
+</body>
+</html>

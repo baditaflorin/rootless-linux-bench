@@ -4,7 +4,7 @@
 import { LinuxSim } from "./LinuxSim.js";
 import { Metrics } from "./Metrics.js";
 import { getCached, putCached, isCacheEnabled } from "./WasmCache.js";
-import { isIsolated, isWasmAvailable, startWasmRuntime } from "./WasmLoader.js";
+import { isIsolated, isWasmAvailable } from "./WasmLoader.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -49,6 +49,7 @@ export class TerminalPane {
     this.paneMetricsEl   = paneMetricsEl;
 
     this.term       = null;
+    this._iframe    = null;   // set when running real WASM in an iframe
     this.inputLine  = "";
     this.interactive = false;
     this._inputEnabled = false;
@@ -142,6 +143,15 @@ export class TerminalPane {
   // Public: run a command and return { output, latencyMs } — used by sync bar.
   async runCommand(cmd) {
     if (this.state !== "ready") return null;
+
+    // In real WASM mode, forward keystrokes to the iframe PTY and return
+    // immediately — output flows to the user's terminal directly.
+    if (this._iframe) {
+      const t0 = performance.now();
+      this._iframe.contentWindow?.postMessage({ type: "input", data: cmd + "\r" }, "*");
+      return { latencyMs: Math.round(performance.now() - t0), output: "" };
+    }
+
     this._inputEnabled = false;
     this.term.writeln("");
     const result = await this._runCommand(cmd);
@@ -173,46 +183,68 @@ export class TerminalPane {
     const mb = this.sim.wasmMB;
     this.metrics.setWasmSize(mb);
     this.setCacheBadge("⬇ real WASM");
-    this.progressLabelEl.textContent = `Loading ${this.sim.distro.name} WASM (${mb} MB)…`;
+    this.progressLabelEl.textContent = `Downloading ${this.sim.distro.name} WASM…`;
 
-    try {
-      const pty = await startWasmRuntime(this.distroId, this.term, {
-        onProgress: (pct) => {
-          this.progressFillEl.style.width = (pct * 100) + "%";
-          this.progressLabelEl.textContent =
-            `Loading ${this.sim.distro.name} WASM — ${Math.round(pct * mb)} / ${mb} MB`;
-        },
-      });
-      this._pty = pty;
-    } catch (err) {
-      this.term.writeln(`\x1b[31m[WasmLoader] ${err.message} — falling back to simulation\x1b[0m`);
-      await this._startSim();
-      return;
-    }
+    // Replace the xterm host div with an iframe that runs QEMU internally.
+    // Each iframe is isolated: its own JS context, its own Module global.
+    const iframe = document.createElement("iframe");
+    iframe.src = `wasm/iframe-${this.distroId}.html`;
+    iframe.style.cssText = "width:100%;height:100%;border:none;display:block;background:#0d0d0d";
+    iframe.allow = "cross-origin-isolated";
+    // Clear existing terminal content and insert iframe
+    this.termEl.innerHTML = "";
+    this.termEl.appendChild(iframe);
+    this._iframe = iframe;
+
+    // Use a null-sink Terminal so existing code paths (playbooks, benchmark)
+    // that call pane.term.writeln() don't throw when term is null.
+    this.term = {
+      writeln: () => {},
+      write:   () => {},
+      clear:   () => {},
+      onData:  () => ({ dispose: () => {} }),
+    };
+
+    // Listen for postMessages from the iframe
+    await new Promise((resolve) => {
+      const onMsg = (event) => {
+        if (event.source !== iframe.contentWindow) return;
+        const { type, ratio, label } = event.data || {};
+
+        if (type === "progress") {
+          if (ratio !== null && ratio !== undefined) {
+            this.progressFillEl.style.width = (ratio * 100) + "%";
+          }
+          if (label) this.progressLabelEl.textContent = label;
+        }
+
+        if (type === "loading") {
+          this.setStatus("⬤ loading", "loading");
+        }
+
+        if (type === "ready") {
+          window.removeEventListener("message", onMsg);
+          resolve();
+        }
+      };
+      window.addEventListener("message", onMsg);
+
+      // Safety timeout — treat as booted after 3 min regardless
+      setTimeout(() => {
+        window.removeEventListener("message", onMsg);
+        resolve();
+      }, 180_000);
+    });
 
     this.metrics.markLoadEnd();
     this.progressEl.style.display = "none";
 
-    // In real mode xterm-pty handles I/O directly; mark ready immediately
     this.state = "booting";
     this.setStatus("⬤ booting", "booting");
     this.metrics.markBootStart();
 
-    // QEMU boot output streams to the terminal automatically via the PTY.
-    // Poll for the shell prompt to detect boot completion.
-    await new Promise((resolve) => {
-      let buf = "";
-      const token = this.term.onData((chunk) => {
-        buf += chunk;
-        if (/[#$]\s*$/.test(buf.slice(-20))) {
-          token.dispose();
-          resolve();
-        }
-      });
-      // Timeout safety — assume ready after 60 s
-      setTimeout(resolve, 60_000);
-    });
-
+    // The iframe's "ready" message fires when the shell prompt first appears,
+    // so we've already detected boot completion above. Mark it done.
     this.metrics.markBootEnd();
     this.metrics.setRam(this.sim.ramMB());
     this.metrics.renderInto(this.paneMetricsEl);
@@ -313,10 +345,15 @@ export class TerminalPane {
     this.state = "idle";
     this.inputLine = "";
     this._inputEnabled = false;
-    if (this.term) {
-      this.term.dispose();
-      this.term = null;
+    if (this._iframe) {
+      this._iframe.remove();
+      this._iframe = null;
+      this.termEl.innerHTML = "";
     }
+    if (this.term && typeof this.term.dispose === "function") {
+      this.term.dispose();
+    }
+    this.term = null;
     this.metrics.reset();
     this.setStatus("⬤ idle", "");
   }
