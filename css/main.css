@@ -825,6 +825,133 @@ a:hover { text-decoration: underline; }
   line-height: 1.5;
 }
 
+/* ── Playbook panel ──────────────────────────────────────────────── */
+.playbook-panel {
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  animation: slideUp .25s ease;
+}
+
+.playbook-header {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.playbook-header h3 { font-size: .9rem; font-weight: 600; }
+.playbook-subtitle  { font-size: .78rem; color: var(--text-muted); }
+
+.playbook-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: .75rem;
+  padding: .75rem 1rem 1rem;
+}
+
+.pb-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+  transition: border-color .2s;
+}
+.pb-card:hover { border-color: var(--text-muted); }
+
+.pb-card-top { display: flex; align-items: flex-start; gap: .7rem; }
+.pb-icon     { font-size: 1.5rem; line-height: 1; flex-shrink: 0; }
+.pb-info     { display: flex; flex-direction: column; gap: .15rem; }
+.pb-title    { font-size: .875rem; font-weight: 600; color: var(--text); }
+.pb-desc     { font-size: .75rem; color: var(--text-muted); line-height: 1.4; }
+
+.pb-steps { display: flex; flex-wrap: wrap; gap: .3rem; }
+
+.pb-step {
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  color: var(--text-muted);
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: .1rem .4rem;
+  transition: background .2s, color .2s, border-color .2s;
+}
+.pb-step.done {
+  background: rgba(63,185,80,.12);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.pb-actions { display: flex; gap: .5rem; margin-top: .15rem; }
+
+.btn-pb-run {
+  flex: 1;
+  padding: .35rem .7rem;
+  background: linear-gradient(90deg, var(--debian-col), var(--fedora-col));
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: .8rem;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn-pb-run:hover    { opacity: .88; }
+.btn-pb-run:disabled { opacity: .45; cursor: not-allowed; }
+
+.btn-pb-yaml {
+  padding: .35rem .7rem;
+  background: var(--bg3);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .78rem;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.btn-pb-yaml:hover { background: var(--border); color: var(--text); }
+
+.playbook-yaml-viewer {
+  margin: 0 1rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  animation: slideUp .2s ease;
+}
+
+.yaml-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .45rem .75rem;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: .78rem;
+  color: var(--text-muted);
+}
+
+.yaml-content {
+  background: var(--bg);
+  color: var(--green);
+  font-family: var(--font-mono);
+  font-size: .75rem;
+  padding: .9rem 1rem;
+  overflow-x: auto;
+  white-space: pre;
+  margin: 0;
+  max-height: 360px;
+  overflow-y: auto;
+  line-height: 1.55;
+}
+
 /* ── Toast ───────────────────────────────────────────────────────── */
 .toast {
   position: fixed;

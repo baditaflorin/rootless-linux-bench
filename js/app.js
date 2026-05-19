@@ -4,6 +4,7 @@ import { BENCHMARK_STEPS } from "./LinuxSim.js";
 import { diffOutputs }     from "./DiffEngine.js";
 import { LearningCards }   from "./LearningCards.js";
 import { isCacheEnabled, setCacheEnabled, clearCache } from "./WasmCache.js";
+import { PLAYBOOKS, runPlaybook } from "./Playbooks.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -19,9 +20,11 @@ const perfPanel  = document.getElementById("perf-panel");
 const syncBar    = document.getElementById("sync-bar");
 const syncInput  = document.getElementById("sync-input");
 const syncResult = document.getElementById("sync-result");
-const learnPanel = document.getElementById("learn-panel");
-const learnCards = document.getElementById("learn-cards-container");
-const cardsCountEl = document.getElementById("cards-count");
+const learnPanel    = document.getElementById("learn-panel");
+const learnCards    = document.getElementById("learn-cards-container");
+const cardsCountEl  = document.getElementById("cards-count");
+const playbookPanel = document.getElementById("playbook-panel");
+const playbookCards = document.getElementById("playbook-cards");
 
 function paneRefs(id) {
   return {
@@ -83,6 +86,7 @@ document.getElementById("btn-benchmark").addEventListener("click",   runBenchmar
 document.getElementById("btn-show-perf").addEventListener("click",  togglePerfPanel);
 document.getElementById("btn-reset").addEventListener("click",      resetAll);
 document.getElementById("btn-show-learn").addEventListener("click", toggleLearnPanel);
+document.getElementById("btn-playbooks").addEventListener("click",  togglePlaybookPanel);
 
 // Fullscreen
 document.getElementById("fullscreen-debian").addEventListener("click", () => panes.debian?.enterFullscreen());
@@ -314,12 +318,113 @@ function showToast(msg) {
   el._t = setTimeout(() => el.classList.remove("show"), 3000);
 }
 
+// ── Playbooks ─────────────────────────────────────────────────────────────────
+function togglePlaybookPanel() {
+  const vis = !playbookPanel.classList.contains("hidden");
+  showPlaybookPanel(!vis);
+}
+
+function showPlaybookPanel(show) {
+  playbookPanel.classList.toggle("hidden", !show);
+  document.getElementById("btn-playbooks").textContent = show ? "🤖 Hide Playbooks" : "🤖 Playbooks";
+  if (show) renderPlaybookCards();
+}
+
+function renderPlaybookCards() {
+  playbookCards.innerHTML = "";
+  const yamlViewer  = document.getElementById("playbook-yaml-viewer");
+  const yamlTitle   = document.getElementById("yaml-title");
+  const yamlContent = document.getElementById("yaml-content");
+
+  document.getElementById("btn-close-yaml")?.addEventListener("click", () => {
+    yamlViewer.classList.add("hidden");
+  }, { once: false });
+
+  PLAYBOOKS.forEach((pb) => {
+    const card = document.createElement("div");
+    card.className = "pb-card";
+    card.innerHTML = `
+      <div class="pb-card-top">
+        <span class="pb-icon">${pb.icon}</span>
+        <div class="pb-info">
+          <span class="pb-title">${escHtml(pb.title)}</span>
+          <span class="pb-desc">${escHtml(pb.description)}</span>
+        </div>
+      </div>
+      <div class="pb-steps">
+        ${pb.steps.map((s, i) => `<span class="pb-step" id="pb-step-${pb.id}-${i}">${escHtml(s.label)}</span>`).join("")}
+      </div>
+      <div class="pb-actions">
+        <button class="btn-pb-run"  data-id="${pb.id}">▶ Run</button>
+        <button class="btn-pb-yaml" data-id="${pb.id}">{ } View YAML</button>
+      </div>`;
+    playbookCards.appendChild(card);
+  });
+
+  // Run buttons
+  playbookCards.querySelectorAll(".btn-pb-run").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const pb = PLAYBOOKS.find((p) => p.id === btn.dataset.id);
+      if (!pb) return;
+
+      const activePanes = {};
+      if (panes.debian?.state === "ready") activePanes.debian = panes.debian;
+      if (panes.fedora?.state === "ready")  activePanes.fedora  = panes.fedora;
+
+      if (!Object.keys(activePanes).length) {
+        showToast("Start a terminal first");
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "⏳ Running…";
+
+      // Reset step indicators
+      pb.steps.forEach((_, i) => {
+        const el = document.getElementById(`pb-step-${pb.id}-${i}`);
+        if (el) el.className = "pb-step";
+      });
+
+      await runPlaybook(pb, activePanes, {
+        onStepDone: (done, total) => {
+          const el = document.getElementById(`pb-step-${pb.id}-${done - 1}`);
+          if (el) el.className = "pb-step done";
+          if (done === total) showToast(`✅ ${pb.title} complete`);
+        },
+      });
+
+      btn.disabled = false;
+      btn.textContent = "▶ Run";
+    });
+  });
+
+  // YAML viewer buttons
+  playbookCards.querySelectorAll(".btn-pb-yaml").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const pb = PLAYBOOKS.find((p) => p.id === btn.dataset.id);
+      if (!pb) return;
+      yamlTitle.textContent = `${pb.icon} ${pb.title} — playbook.yml`;
+      yamlContent.textContent = pb.yaml;
+      yamlViewer.classList.remove("hidden");
+      yamlViewer.scrollIntoView({ behavior: "smooth" });
+    });
+  });
+
+  // Close yaml
+  document.getElementById("btn-close-yaml").addEventListener("click", () => {
+    yamlViewer.classList.add("hidden");
+  });
+}
+
+document.getElementById("btn-close-playbooks")?.addEventListener("click", () => showPlaybookPanel(false));
+
 // ── Reset ─────────────────────────────────────────────────────────────────────
 function resetAll() {
   Object.values(panes).forEach((p) => p.reset());
   panes = {};
   showPerfPanel(false);
   showLearnPanel(false);
+  showPlaybookPanel(false);
   syncBar.classList.add("hidden");
   syncResult.classList.add("hidden");
   lab.classList.add("hidden");

@@ -97,6 +97,7 @@
       <button class="btn-secondary" id="btn-benchmark">⚡ Run Benchmark</button>
       <button class="btn-secondary" id="btn-show-perf">📊 Performance</button>
       <button class="btn-secondary" id="btn-show-learn">📚 Cards (0)</button>
+      <button class="btn-secondary" id="btn-playbooks">🤖 Playbooks</button>
       <button class="btn-secondary" id="btn-reset">↺ Reset</button>
     </div>
   </header>
@@ -165,6 +166,26 @@
     </div>
 
   </div><!-- /terminal-grid -->
+
+  <!-- ── Playbook panel ── -->
+  <div id="playbook-panel" class="playbook-panel hidden">
+    <div class="playbook-header">
+      <h3>🤖 Ansible Playbooks</h3>
+      <p class="playbook-subtitle">One-click automated installs — runs on both distros simultaneously</p>
+      <button class="btn-secondary" id="btn-close-playbooks" style="margin-left:auto">✕ Close</button>
+    </div>
+    <div id="playbook-cards" class="playbook-cards">
+      <!-- injected by app.js -->
+    </div>
+    <!-- YAML viewer -->
+    <div id="playbook-yaml-viewer" class="playbook-yaml-viewer hidden">
+      <div class="yaml-header">
+        <span id="yaml-title">playbook.yml</span>
+        <button class="btn-secondary" id="btn-close-yaml" style="font-size:.75rem;padding:.2rem .6rem">✕</button>
+      </div>
+      <pre id="yaml-content" class="yaml-content"></pre>
+    </div>
+  </div>
 
   <!-- ── Sync command bar ── -->
   <div id="sync-bar" class="sync-bar hidden">
