@@ -93,6 +93,7 @@
     <div class="lab-controls">
       <button class="btn-secondary" id="btn-benchmark">⚡ Run Benchmark</button>
       <button class="btn-secondary" id="btn-show-perf">📊 Performance</button>
+      <button class="btn-secondary" id="btn-show-learn">📚 Cards (0)</button>
       <button class="btn-secondary" id="btn-reset">↺ Reset</button>
     </div>
   </header>
@@ -107,6 +108,7 @@
           <span class="distro-dot debian"></span>
           Debian 12 (bookworm)
           <span class="status-indicator" id="status-debian">⬤ idle</span>
+          <span class="cache-badge" id="cache-badge-debian"></span>
         </div>
         <div class="pane-actions">
           <button class="btn-icon" id="fullscreen-debian" title="Fullscreen (F)">⛶</button>
@@ -136,6 +138,7 @@
           <span class="distro-dot fedora"></span>
           Fedora Linux 41
           <span class="status-indicator" id="status-fedora">⬤ idle</span>
+          <span class="cache-badge" id="cache-badge-fedora"></span>
         </div>
         <div class="pane-actions">
           <button class="btn-icon" id="fullscreen-fedora" title="Fullscreen (F)">⛶</button>
@@ -159,6 +162,43 @@
     </div>
 
   </div><!-- /terminal-grid -->
+
+  <!-- ── Sync command bar ── -->
+  <div id="sync-bar" class="sync-bar hidden">
+    <div class="sync-row">
+      <span class="sync-label">Run on both:</span>
+      <input type="text" id="sync-input" class="sync-input" placeholder="e.g.  uname -r  or  apt-get install curl" spellcheck="false" autocomplete="off" />
+      <button class="btn-sync" id="sync-both">▶▶ Both</button>
+      <button class="btn-sync btn-sync-d" id="sync-debian">🐧 Debian</button>
+      <button class="btn-sync btn-sync-f" id="sync-fedora">🎩 Fedora</button>
+    </div>
+    <div id="sync-result" class="sync-result hidden"></div>
+  </div>
+
+  <!-- ── Learning panel ── -->
+  <div id="learn-panel" class="learn-panel hidden">
+    <div class="learn-header">
+      <h3>📚 Debian ↔ Fedora Learning Cards</h3>
+      <div class="learn-actions">
+        <button class="btn-secondary" id="btn-export-learn">⬇ Export JSON</button>
+        <button class="btn-secondary" id="btn-clear-learn">🗑 Clear Discovered</button>
+        <button class="btn-secondary" id="btn-close-learn">✕ Close</button>
+      </div>
+    </div>
+    <div id="learn-cards-container" class="learn-cards-container"></div>
+  </div>
+
+  <!-- Hidden card count target (app.js updates this, then copies to btn text) -->
+  <span id="cards-count" style="display:none">0 cards</span>
+
+  <!-- ── Cache settings row ── -->
+  <div class="cache-settings">
+    <label class="cache-toggle-label">
+      <input type="checkbox" id="cache-toggle" checked />
+      <span>Cache WASM in browser (IndexedDB)</span>
+    </label>
+    <button class="btn-secondary" id="btn-clear-cache" style="font-size:.75rem;padding:.25rem .65rem">🗑 Clear cache</button>
+  </div>
 
   <!-- ── Performance panel ── -->
   <div id="perf-panel" class="perf-panel hidden">

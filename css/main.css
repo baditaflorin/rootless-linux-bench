@@ -498,3 +498,352 @@ a:hover { text-decoration: underline; }
 ::-webkit-scrollbar-track { background: var(--bg2); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Cache badge ─────────────────────────────────────────────────── */
+.cache-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: .1rem .45rem;
+  border-radius: 20px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  transition: color .3s, border-color .3s;
+}
+.cache-badge:empty { display: none; }
+.cache-badge.hit { color: var(--green); border-color: var(--green); }
+
+/* ── Cache settings row ──────────────────────────────────────────── */
+.cache-settings {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: .4rem 1rem;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.cache-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.cache-toggle-label input[type="checkbox"] {
+  accent-color: var(--blue);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+/* ── Sync bar ────────────────────────────────────────────────────── */
+.sync-bar {
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.sync-row {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .55rem 1rem;
+  flex-wrap: wrap;
+}
+
+.sync-label {
+  font-size: .8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.sync-input {
+  flex: 1;
+  min-width: 220px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: .8rem;
+  padding: .35rem .7rem;
+  outline: none;
+  transition: border-color .15s;
+}
+.sync-input:focus { border-color: var(--blue); }
+.sync-input::placeholder { color: var(--text-muted); opacity: .6; }
+
+.btn-sync {
+  padding: .35rem .8rem;
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .8rem;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s;
+}
+.btn-sync:hover { background: var(--border); }
+.btn-sync-d:hover { border-color: var(--debian-col); color: var(--debian-col); }
+.btn-sync-f:hover { border-color: var(--fedora-col); color: var(--fedora-col); }
+
+/* ── Sync result ─────────────────────────────────────────────────── */
+.sync-result {
+  margin: 0 1rem .6rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: .65rem .9rem;
+  font-size: .8rem;
+  background: var(--bg);
+  animation: slideUp .2s ease;
+  overflow: auto;
+  max-height: 260px;
+}
+.sync-result.same    { border-color: var(--green);  }
+.sync-result.error   { border-color: var(--red);    }
+.sync-result.partial { border-color: var(--yellow); }
+.sync-result.diff    { border-color: var(--blue);   }
+.sync-result.info    { border-color: var(--border); }
+.sync-result.single  { border-color: var(--border); }
+
+.diff-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  margin-bottom: .5rem;
+  padding: .2rem .55rem;
+  border-radius: 4px;
+  display: inline-block;
+}
+.diff-label.same        { background: rgba(63,185,80,.15);  color: var(--green);  }
+.diff-label.both-failed { background: rgba(255,123,114,.15);color: var(--red);    }
+.diff-label.debian-only,
+.diff-label.fedora-only { background: rgba(210,153,34,.15); color: var(--yellow); }
+.diff-label.different   { background: rgba(88,166,255,.15); color: var(--blue);   }
+
+.diff-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .6rem;
+  margin-top: .5rem;
+}
+@media (max-width: 700px) { .diff-cols { grid-template-columns: 1fr; } }
+
+.diff-col { display: flex; flex-direction: column; gap: .3rem; }
+
+.diff-distro {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+.diff-col.debian .diff-distro { color: var(--debian-col); }
+.diff-col.fedora .diff-distro { color: var(--fedora-col); }
+
+.diff-out {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: .45rem .6rem;
+  font-size: 11.5px;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 120px;
+  overflow: auto;
+  color: var(--text);
+  margin: 0;
+}
+.diff-out.err { border-color: var(--red); color: var(--red); }
+
+.diff-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: .1rem .45rem;
+  border-radius: 20px;
+  border: 1px solid;
+}
+.diff-badge.same        { color: var(--green);  border-color: var(--green);  background: rgba(63,185,80,.1);  }
+.diff-badge.different   { color: var(--blue);   border-color: var(--blue);   background: rgba(88,166,255,.1); }
+.diff-badge.both-failed { color: var(--red);    border-color: var(--red);    background: rgba(255,123,114,.1);}
+.diff-badge.debian-only,
+.diff-badge.fedora-only { color: var(--yellow); border-color: var(--yellow); background: rgba(210,153,34,.1); }
+
+.btn-save-card {
+  margin-top: .6rem;
+  padding: .3rem .7rem;
+  background: rgba(88,166,255,.12);
+  border: 1px solid var(--blue);
+  border-radius: var(--radius);
+  color: var(--blue);
+  font-size: .78rem;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  transition: background .15s;
+}
+.btn-save-card:hover { background: rgba(88,166,255,.22); }
+
+/* ── Spin animation for "running" indicator ──────────────────────── */
+.spin { display: inline-block; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Learning panel ──────────────────────────────────────────────── */
+.learn-panel {
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  max-height: 55vh;
+  flex-shrink: 0;
+  animation: slideUp .25s ease;
+}
+
+.learn-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .6rem 1rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.learn-header h3 {
+  font-size: .9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.learn-actions {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+
+.learn-cards-container {
+  overflow-y: auto;
+  padding: .75rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.learn-section { display: flex; flex-direction: column; gap: .4rem; }
+
+.learn-section-title {
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: .4rem 0 .2rem;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+
+.learn-count {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: .05rem .45rem;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+/* ── Learning card ───────────────────────────────────────────────── */
+.learn-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .7rem .9rem;
+  transition: border-color .2s;
+}
+.learn-card:hover { border-color: var(--text-muted); }
+.learn-card.discovered { border-left: 3px solid var(--blue); }
+.learn-card.seeded     { border-left: 3px solid var(--border); }
+.learn-card.different  { border-left-color: var(--blue);   }
+.learn-card.debian-only,
+.learn-card.fedora-only{ border-left-color: var(--yellow); }
+.learn-card.both-failed{ border-left-color: var(--red);    }
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: .45rem;
+  gap: .5rem;
+}
+
+.card-title {
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.card-body { display: flex; flex-direction: column; gap: .3rem; }
+
+.card-row {
+  display: flex;
+  align-items: baseline;
+  gap: .6rem;
+  font-size: .8rem;
+}
+
+.card-distro {
+  font-family: var(--font-mono);
+  font-size: .72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 72px;
+}
+.card-distro.debian { color: var(--debian-col); }
+.card-distro.fedora { color: var(--fedora-col); }
+
+.card-val {
+  font-family: var(--font-mono);
+  font-size: .75rem;
+  color: var(--text);
+  background: var(--bg2);
+  padding: .15rem .4rem;
+  border-radius: 3px;
+  word-break: break-all;
+}
+
+.card-note {
+  font-size: .75rem;
+  color: var(--text-muted);
+  margin-top: .25rem;
+  line-height: 1.5;
+}
+
+/* ── Toast ───────────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(1.5rem);
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .5rem 1.2rem;
+  font-size: .82rem;
+  color: var(--text);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .25s ease, transform .25s ease;
+  z-index: 9999;
+  white-space: nowrap;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}

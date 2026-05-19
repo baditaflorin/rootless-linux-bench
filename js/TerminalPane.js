@@ -3,11 +3,11 @@
 
 import { LinuxSim } from "./LinuxSim.js";
 import { Metrics } from "./Metrics.js";
+import { getCached, putCached, isCacheEnabled } from "./WasmCache.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// WASM load simulation: show a realistic download progress bar.
-// Actual bytes/s varies between 5–18 MB/s to feel realistic.
+// Simulated download (used when no real WASM is present or cache miss).
 async function simulateDownload(fileMB, onProgress) {
   const totalMs = fileMB / (5 + Math.random() * 13) * 1000;
   const steps = 60;
@@ -59,6 +59,11 @@ export class TerminalPane {
     if (!this.statusEl) return;
     this.statusEl.textContent = text;
     this.statusEl.className = "status-indicator " + cls;
+  }
+
+  setCacheBadge(text) {
+    const el = document.getElementById(`cache-badge-${this.distroId}`);
+    if (el) { el.textContent = text; el.classList.toggle("hit", text.includes("cached")); }
   }
 
   _initTerm() {
@@ -133,6 +138,16 @@ export class TerminalPane {
     return { latencyMs: actualMs, output: result.output };
   }
 
+  // Public: run a command and return { output, latencyMs } — used by sync bar.
+  async runCommand(cmd) {
+    if (this.state !== "ready") return null;
+    this._inputEnabled = false;
+    this.term.writeln("");
+    const result = await this._runCommand(cmd);
+    this._inputEnabled = true;
+    return result;
+  }
+
   async start() {
     if (this.state !== "idle") return;
     this.state = "loading";
@@ -140,17 +155,36 @@ export class TerminalPane {
     this._initTerm();
     this.setStatus("⬤ loading", "loading");
 
-    // --- Phase 1: WASM download ---
+    // --- Phase 1: WASM load (cache-aware) ---
     this.progressEl.style.display = "flex";
     this.metrics.setWasmSize(this.sim.wasmMB);
     this.metrics.markLoadStart();
 
-    const mb = this.sim.wasmMB;
-    await simulateDownload(mb, (pct) => {
-      this.progressFillEl.style.width = (pct * 100) + "%";
-      this.progressLabelEl.textContent =
-        `Downloading ${this.sim.distro.name} WASM — ${Math.round(pct * mb)} / ${mb} MB`;
-    });
+    const mb        = this.sim.wasmMB;
+    const cacheKey  = `wasm-sim-${this.distroId}`;
+    const cached    = isCacheEnabled() && await getCached(cacheKey);
+
+    if (cached) {
+      // Fast cache-hit path
+      this.progressFillEl.style.width = "100%";
+      this.progressLabelEl.textContent = `💾 Loaded from cache — ${mb} MB`;
+      this.setCacheBadge("💾 cached");
+      await sleep(600 + Math.random() * 400);
+    } else {
+      // Simulate fresh download
+      this.setCacheBadge("⬇ fresh");
+      await simulateDownload(mb, (pct) => {
+        this.progressFillEl.style.width = (pct * 100) + "%";
+        this.progressLabelEl.textContent =
+          `Downloading ${this.sim.distro.name} WASM — ${Math.round(pct * mb)} / ${mb} MB`;
+      });
+      // Cache the sentinel after "download"
+      if (isCacheEnabled()) {
+        await putCached(cacheKey, "sim");
+        this.setCacheBadge("💾 cached");
+      }
+    }
+
     this.metrics.markLoadEnd();
     this.progressLabelEl.textContent = "Initializing runtime…";
     await sleep(400);
